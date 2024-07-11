@@ -1,0 +1,8 @@
+numpy  # Don't remove - Needed for reading images
+Pillow # Don't remove - Needed for reading images
+scikit-learn # Used in local evaluation
+torch
+torchvision
+PyYAML
+ultralytics
+gitpython
