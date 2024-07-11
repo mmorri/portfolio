@@ -6,7 +6,7 @@ Welcome to my portfolio! I'm a data scientist, engineer, and computational biolo
 
 - [Data Science Projects](./projects/data_science/)
 - [Engineering Projects](./projects/engineering/)
-- [Computational Biology Projects](./projects/computational_biology/)
+- [Computational Biology Projects](./projects/comp_bio/)
 
 ## Skills
 
