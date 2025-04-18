@@ -1,0 +1,55 @@
+# Configuration file for Genomic Alignment Pipeline
+
+# Sample information
+# Add or remove samples as needed
+samples:
+  sample1:
+    R1: "data/sample1_R1.fastq.gz"
+    R2: "data/sample1_R2.fastq.gz"
+  sample2:
+    R1: "data/sample2_R1.fastq.gz"
+    R2: "data/sample2_R2.fastq.gz"
+  sample3:
+    R1: "data/sample3_R1.fastq.gz"
+    R2: "data/sample3_R2.fastq.gz"
+
+# Reference genome
+reference:
+  genome: "reference/reference.fasta"
+  known_sites: "reference/known_variants.vcf.gz"
+
+# Thread counts for different tools
+threads:
+  fastqc: 2
+  trimmomatic: 8
+  bwa: 8
+  samtools: 4
+  gatk: 4
+
+# Tool-specific parameters
+params:
+  trimmomatic:
+    adapter: "adapter/TruSeq3-PE.fa"
+    trimmer: "LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36"
+  
+  bwa:
+    mem_options: "-M"
+  
+  variant_filtering:
+    filters: >-
+      --filter-name "QD_filter" --filter "QD < 2.0" 
+      --filter-name "FS_filter" --filter "FS > 60.0" 
+      --filter-name "MQ_filter" --filter "MQ < 40.0" 
+      --filter-name "SOR_filter" --filter "SOR > 3.0" 
+      --filter-name "ReadPosRankSum_filter" --filter "ReadPosRankSum < -8.0" 
+      --filter-name "MQRankSum_filter" --filter "MQRankSum < -12.5"
+
+# Output directories
+output_dirs:
+  fastqc: "results/fastqc"
+  trimmed: "results/trimmed"
+  aligned: "results/aligned"
+  dedup: "results/dedup"
+  variants: "results/variants"
+  filtered: "results/filtered"
+  qc: "results/qc"

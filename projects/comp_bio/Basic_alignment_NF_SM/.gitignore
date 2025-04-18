@@ -1,0 +1,115 @@
+# Genomic Alignment Pipeline .gitignore
+
+# Input data directories - large files that shouldn't be committed
+/data/**
+!/data/.gitignore
+
+# Reference genomes - large files that shouldn't be committed
+/reference/**
+!/reference/.gitignore
+
+# Output results - should be generated locally, not committed
+/results/**
+!/results/.gitignore
+
+# Log files
+/logs/**
+!/logs/.gitignore
+
+# Nextflow specific
+/.nextflow/
+/.nextflow.log*
+/work/
+/.nextflow/
+
+# Snakemake specific
+/.snakemake/
+/.snakemake.log*
+
+# Environment
+/conda-env/
+/.conda/
+/venv/
+/.venv/
+
+# Temporary files
+/temp/
+/tmp/
+*.tmp
+*.temp
+*.swp
+*.bak
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# R
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+hs_err_pid*
+
+# OS-specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+nbproject/
+.ipynb_checkpoints/
+
+# Docker
+.dockerignore
+
+# Testing environments
+/testing/
+/sandbox/

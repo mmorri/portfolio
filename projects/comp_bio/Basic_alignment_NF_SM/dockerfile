@@ -1,0 +1,53 @@
+FROM continuumio/miniconda3:latest
+
+LABEL maintainer="Your Name <your.email@example.com>"
+LABEL description="Docker image for genomic alignment pipeline"
+LABEL version="1.0.0"
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    wget \
+    curl \
+    git \
+    unzip \
+    procps \
+    default-jre \
+    default-jdk \
+    graphviz \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up working directory
+WORKDIR /pipeline
+
+# Copy environment files
+COPY environment.yml /pipeline/
+
+# Create conda environment
+RUN conda env create -f environment.yml && conda clean -a
+
+# Add conda environment to PATH
+ENV PATH /opt/conda/envs/genomics-alignment/bin:$PATH
+
+# Install additional tools that might not be available in conda
+RUN mkdir -p /opt/tools
+
+# Add workflow files
+COPY main.nf /pipeline/
+COPY nextflow.config /pipeline/
+COPY Snakefile /pipeline/
+COPY config.yaml /pipeline/
+COPY run_pipeline.sh /pipeline/
+COPY utils/ /pipeline/utils/
+
+# Make scripts executable
+RUN chmod +x /pipeline/run_pipeline.sh /pipeline/utils/*.py
+
+# Set up entry point
+ENTRYPOINT ["/bin/bash", "-c"]
+CMD ["/pipeline/run_pipeline.sh"]
