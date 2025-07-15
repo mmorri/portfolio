@@ -1,15 +1,56 @@
 
-// Email PII Monitoring System with Gmail Integration
+// Email PII Monitoring System with Gmail Integration and ML-Powered Detection
 // Node.js backend for detecting sensitive information in emails
 
 const express = require('express');
 const { google } = require('googleapis');
 const fs = require('fs').promises;
 const path = require('path');
+const cors = require('cors');
+const helmet = require('helmet');
+const { RateLimiterMemory } = require('rate-limiter-flexible');
+
+// Import ML PII Detector
+const MLPIIDetector = require('./ml/MLPIIDetector');
+
 const app = express();
 app.use(express.json());
+app.use(cors());
+app.use(helmet());
 
-// PII Detection Patterns
+// Rate limiting
+const rateLimiter = new RateLimiterMemory({
+  keyGenerator: (req) => req.ip,
+  points: 100, // Number of requests
+  duration: 60, // Per 60 seconds
+});
+
+const rateLimiterMiddleware = async (req, res, next) => {
+  try {
+    await rateLimiter.consume(req.ip);
+    next();
+  } catch (rejRes) {
+    res.status(429).json({
+      success: false,
+      error: 'Too many requests. Please try again later.'
+    });
+  }
+};
+
+app.use(rateLimiterMiddleware);
+
+// Health check endpoint for Docker
+app.get('/api/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    mlEnabled: emailMonitor.mlEnabled,
+    uptime: process.uptime()
+  });
+});
+
+// PII Detection Patterns (Enhanced)
 const PII_PATTERNS = {
   ssn: {
     regex: /\b\d{3}-?\d{2}-?\d{4}\b/g,
@@ -43,12 +84,14 @@ const PII_PATTERNS = {
   }
 };
 
-// Sensitive Keywords
+// Sensitive Keywords (Enhanced)
 const SENSITIVE_KEYWORDS = [
   'confidential', 'classified', 'restricted', 'proprietary',
   'trade secret', 'internal only', 'do not distribute',
   'salary', 'compensation', 'payroll', 'termination',
-  'acquisition', 'merger', 'lawsuit', 'settlement'
+  'acquisition', 'merger', 'lawsuit', 'settlement',
+  'password', 'secret', 'private', 'sensitive',
+  'personal data', 'gdpr', 'hipaa', 'compliance'
 ];
 
 class GmailMonitor {
@@ -164,7 +207,7 @@ class GmailMonitor {
         userId: 'me',
         requestBody: {
           labelIds: ['INBOX'],
-          topicName: 'projects/your-project/topics/gmail-notifications'
+          topicName: 'projects/pii-monitor-project/topics/gmail-notifications'
         }
       });
 
@@ -194,7 +237,7 @@ class GmailMonitor {
               for (const added of record.messagesAdded) {
                 const emailData = await this.getEmailContent(added.message.id);
                 if (emailData) {
-                  const analysis = emailMonitor.analyzeEmail(emailData);
+                  const analysis = await emailMonitor.analyzeEmail(emailData);
                   if (analysis.requiresReview) {
                     console.log(`🚨 Flagged email: ${emailData.subject} (Risk: ${analysis.riskLevel})`);
                   }
@@ -244,29 +287,58 @@ class GmailMonitor {
 class EmailMonitor {
   constructor() {
     this.flaggedEmails = [];
+    this.mlDetector = new MLPIIDetector();
+    this.mlEnabled = false;
   }
 
-  analyzeEmail(emailData) {
+  async initialize() {
+    try {
+      await this.mlDetector.initialize();
+      this.mlEnabled = this.mlDetector.isModelLoaded;
+      console.log(`🤖 ML Detection ${this.mlEnabled ? 'enabled' : 'disabled'}`);
+    } catch (error) {
+      console.warn('⚠️  ML detector initialization failed:', error.message);
+      this.mlEnabled = false;
+    }
+  }
+
+  async analyzeEmail(emailData) {
     const { id, from, to, subject, body, timestamp } = emailData;
     const findings = [];
     let riskScore = 0;
 
-    // Check for PII patterns
+    // Enhanced PII detection with ML support
+    const mlResults = await this.mlDetector.detectPII(body);
+    
+    if (mlResults.findings.length > 0) {
+      findings.push(...mlResults.findings);
+      riskScore += mlResults.confidence * 10;
+    }
+
+    // Check for PII patterns (rule-based fallback)
     Object.entries(PII_PATTERNS).forEach(([type, pattern]) => {
       const matches = body.match(pattern.regex);
       if (matches) {
-        findings.push({
-          type: 'PII',
-          category: type,
-          description: pattern.description,
-          severity: pattern.severity,
-          matches: matches.length,
-          examples: matches.slice(0, 3) // Show first 3 matches
-        });
+        // Check if not already detected by ML
+        const alreadyDetected = findings.some(f => 
+          f.category === type && matches.includes(f.value)
+        );
         
-        // Add to risk score
-        riskScore += pattern.severity === 'HIGH' ? 10 : 
-                    pattern.severity === 'MEDIUM' ? 5 : 2;
+        if (!alreadyDetected) {
+          findings.push({
+            type: 'PII',
+            category: type,
+            description: pattern.description,
+            severity: pattern.severity,
+            matches: matches.length,
+            examples: matches.slice(0, 3),
+            method: 'rule-based'
+          });
+          
+          // Add to risk score
+          riskScore += pattern.severity === 'HIGH' ? 10 : 
+                      pattern.severity === 'MEDIUM' ? 5 : 2;
+        }
       }
     });
 
@@ -288,7 +360,8 @@ class EmailMonitor {
         description: 'Sensitive Keywords Detected',
         severity: 'MEDIUM',
         matches: keywordMatches.length,
-        examples: keywordMatches.slice(0, 5)
+        examples: keywordMatches.slice(0, 5),
+        method: 'keyword-matching'
       });
     }
 
@@ -307,7 +380,10 @@ class EmailMonitor {
       riskScore,
       findings,
       requiresReview: riskScore >= 5,
-      status: 'FLAGGED'
+      status: 'FLAGGED',
+      mlEnhanced: this.mlEnabled,
+      mlConfidence: mlResults.confidence,
+      processingTime: mlResults.processingTime
     };
 
     // Store flagged emails
@@ -331,6 +407,10 @@ class EmailMonitor {
       );
     }
 
+    if (filters.mlEnhanced !== undefined) {
+      filtered = filtered.filter(email => email.mlEnhanced === filters.mlEnhanced);
+    }
+
     return filtered.sort((a, b) => b.riskScore - a.riskScore);
   }
 
@@ -349,11 +429,25 @@ class EmailMonitor {
         return acc;
       }, {});
 
+    const mlStats = this.flaggedEmails.reduce((acc, email) => {
+      if (email.mlEnhanced) {
+        acc.mlEnhancedCount++;
+        acc.totalMlConfidence += email.mlConfidence || 0;
+      }
+      return acc;
+    }, { mlEnhancedCount: 0, totalMlConfidence: 0 });
+
     return {
       totalFlagged: total,
       riskDistribution: byRisk,
       commonFindings,
-      lastAnalyzed: this.flaggedEmails[0]?.timestamp || null
+      lastAnalyzed: this.flaggedEmails[0]?.timestamp || null,
+      mlStats: {
+        enabled: this.mlEnabled,
+        enhancedCount: mlStats.mlEnhancedCount,
+        averageConfidence: mlStats.mlEnhancedCount > 0 ? 
+          mlStats.totalMlConfidence / mlStats.mlEnhancedCount : 0
+      }
     };
   }
 }
@@ -361,6 +455,9 @@ class EmailMonitor {
 // Initialize monitors
 const emailMonitor = new EmailMonitor();
 const gmailMonitor = new GmailMonitor();
+
+// Initialize ML detector
+emailMonitor.initialize().catch(console.error);
 
 // Gmail Authentication Endpoints
 app.get('/api/auth/url', (req, res) => {
@@ -434,7 +531,7 @@ app.get('/api/gmail/scan-recent', async (req, res) => {
     
     const results = [];
     for (const email of emails) {
-      const analysis = emailMonitor.analyzeEmail(email);
+      const analysis = await emailMonitor.analyzeEmail(email);
       results.push(analysis);
     }
 
@@ -444,7 +541,8 @@ app.get('/api/gmail/scan-recent', async (req, res) => {
       success: true,
       scanned: results.length,
       flagged: flagged.length,
-      results: flagged
+      results: flagged,
+      mlEnabled: emailMonitor.mlEnabled
     });
   } catch (error) {
     res.status(500).json({
@@ -455,17 +553,36 @@ app.get('/api/gmail/scan-recent', async (req, res) => {
 });
 
 // API Endpoints
-app.post('/api/analyze-email', (req, res) => {
+app.post('/api/analyze-email', async (req, res) => {
   try {
-    const result = emailMonitor.analyzeEmail(req.body);
+    // Input validation
+    const { from, subject, body, to } = req.body;
+    
+    if (!from || !subject) {
+      return res.status(400).json({
+        success: false,
+        error: 'From and subject are required fields'
+      });
+    }
+
+    const emailData = {
+      from: from.trim(),
+      subject: subject.trim(),
+      body: body ? body.trim() : '',
+      to: to ? (Array.isArray(to) ? to : [to]) : []
+    };
+
+    const result = await emailMonitor.analyzeEmail(emailData);
     res.json({
       success: true,
       result
     });
   } catch (error) {
+    console.error('Email analysis error:', error);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: 'Failed to analyze email',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -493,6 +610,46 @@ app.get('/api/statistics', (req, res) => {
     res.json({
       success: true,
       statistics: stats
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ML Model Management Endpoints
+app.get('/api/ml/status', (req, res) => {
+  try {
+    const mlStats = emailMonitor.mlDetector.getStats();
+    res.json({
+      success: true,
+      mlEnabled: emailMonitor.mlEnabled,
+      stats: mlStats
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.post('/api/ml/test', async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text) {
+      return res.status(400).json({
+        success: false,
+        error: 'Text is required'
+      });
+    }
+
+    const result = await emailMonitor.mlDetector.detectPII(text);
+    res.json({
+      success: true,
+      result
     });
   } catch (error) {
     res.status(500).json({
@@ -532,29 +689,81 @@ app.patch('/api/email/:id/status', (req, res) => {
   }
 });
 
-// Health check
+// Legacy health check (redirects to new endpoint)
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', service: 'Email PII Monitor' });
+  res.redirect('/api/health');
+});
+
+// Global error handler
+app.use((error, req, res, next) => {
+  console.error('Unhandled error:', error);
+  res.status(500).json({
+    success: false,
+    error: 'Internal server error',
+    details: process.env.NODE_ENV === 'development' ? error.message : undefined
+  });
+});
+
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: 'Endpoint not found',
+    availableEndpoints: [
+      'GET /api/health',
+      'POST /api/analyze-email',
+      'GET /api/flagged-emails',
+      'GET /api/statistics',
+      'GET /api/ml/status',
+      'POST /api/ml/test',
+      'GET /api/auth/url',
+      'POST /api/auth/token'
+    ]
+  });
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, async () => {
-  console.log(`🚀 Email PII Monitor with Gmail Integration running on port ${PORT}`);
+const server = app.listen(PORT, async () => {
+  console.log(`🚀 Email PII Monitor with ML Integration running on port ${PORT}`);
   console.log(`📧 Ready to analyze emails for sensitive information`);
+  console.log(`🤖 ML Detection: ${emailMonitor.mlEnabled ? 'Enabled' : 'Disabled'}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   
   // Try to authenticate on startup
-  await gmailMonitor.authenticate();
+  try {
+    await gmailMonitor.authenticate();
+  } catch (error) {
+    console.warn('⚠️  Gmail authentication failed on startup:', error.message);
+  }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('🛑 Received SIGTERM, shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 Received SIGINT, shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
 });
 
 // Setup Instructions:
 /*
 1. Enable Gmail API in Google Cloud Console
 2. Create OAuth 2.0 credentials and download as 'credentials.json'
-3. Install dependencies: npm install googleapis express
-4. Start server: node server.js
-5. Visit /api/auth/url to get authorization URL
-6. Use /api/auth/token with the authorization code
-7. Start monitoring with /api/gmail/start-monitoring
+3. Install dependencies: npm install
+4. Train ML model: npm run train
+5. Start server: npm start
+6. Visit /api/auth/url to get authorization URL
+7. Use /api/auth/token with the authorization code
+8. Start monitoring with /api/gmail/start-monitoring
 
 Example Gmail Integration Usage:
 
@@ -572,14 +781,9 @@ curl -X POST http://localhost:3000/api/gmail/start-monitoring
 // Scan recent emails
 curl http://localhost:3000/api/gmail/scan-recent?count=20
 
-*/
+// Test ML detection
+curl -X POST http://localhost:3000/api/ml/test \
+  -H "Content-Type: application/json" \
+  -d '{"text": "My SSN is 123-45-6789"}'
 
-// Package.json dependencies needed:
-/*
-{
-  "dependencies": {
-    "express": "^4.18.2",
-    "googleapis": "^118.0.0"
-  }
-}
 */
