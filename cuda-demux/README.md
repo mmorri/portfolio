@@ -12,9 +12,25 @@ The code is hosted on GitHub at: [https://github.com/mmorri/cuda-demux](https://
 
 ## Installation
 ### Prerequisites
+- NVIDIA GPU with CUDA support
 - CUDA Toolkit 11.0 or later
 - CMake 3.16 or later
 - A C++17-compatible compiler
+
+### CUDA Setup
+Before building, check your system for an NVIDIA GPU and install CUDA if needed:
+
+```bash
+python3 install_cuda.py
+```
+
+If no NVIDIA GPU is detected, CUDA cannot be installed and this project will not run.
+
+### Troubleshooting
+- If you encounter CUDA-related errors during build, ensure your GPU is NVIDIA and CUDA Toolkit is installed and on your PATH.
+- On macOS: CUDA is only supported on older Intel Macs with NVIDIA GPUs. Apple Silicon and most modern Macs are not supported.
+- On Linux: Prefer the official NVIDIA CUDA repository for drivers/toolkit.
+- On Windows: Run the CUDA installer as administrator.
 
 ### Build Instructions
 1. Clone the repository:
