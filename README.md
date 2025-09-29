@@ -39,6 +39,60 @@ _**Tech:** Node.js, Express, Google APIs, Regex, OAuth2_
 
 ---
 
+## 📂 Other Projects
+
+Here are some other projects from my GitHub, automatically indexed.
+
+### [AIMIND](https://github.com/mmorri/AIMIND)
+Complete implementation of Touch Medium Contact system with both original and enhanced versions.
+
+### [algo](https://github.com/mmorri/algo)
+This repository contains code and resources for algorithmic analysis and experimentation.
+
+### [BRAID](https://github.com/mmorri/BRAID)
+BRAID is a department within Genentech dedicated to advancing biological and clinical sciences through artificial intelligence.
+
+### [cuda-demux](https://github.com/mmorri/cuda-demux)
+A high-performance, GPU-accelerated tool for demultiplexing Illumina sequencing data from BCL/CBCL format to FASTQ files.
+
+### [echoedge-entity-linking](https://github.com/mmorri/echoedge-entity-linking)
+A comprehensive solution for EchoEdge's entity linking challenge. The goal is to accurately match incoming customer emails to the correct customer accounts in the database.
+
+### [geneapp](https://github.com/mmorri/geneapp)
+A project for genetic data analysis and visualization. (Description is a placeholder)
+
+### [gumroad](https://github.com/mmorri/gumroad)
+A project related to Gumroad. (Description is a placeholder)
+
+### [gutmine](https://github.com/mmorri/gutmine)
+A beautiful, full-stack web application for tracking FODMAP and gluten intake, logging symptoms, and receiving personalized food suggestions based on your tolerance patterns.
+
+### [mauriziomorri.github.io](https://github.com/mmorri/mauriziomorri.github.io)
+My personal GitHub Pages profile site.
+
+### [mental-health-assistant](https://github.com/mmorri/mental-health-assistant)
+A simple assistant for mental health counselors to generate suggestions for patient challenges using AI.
+
+### [onos](https://github.com/mmorri/onos)
+A minimal Django application with django-tenants support and Django Ninja API. Each tenant corresponds to a health insurance company, which has members (members of the health plan).
+
+### [thoughtful-ai-agent](https://github.com/mmorri/thoughtful-ai-agent)
+A customer support AI agent that handles common questions about Thoughtful AI's products and services.
+
+### [TOBYH](https://github.com/mmorri/TOBYH)
+A project with a currently empty README. (Description is a placeholder)
+
+### [toolchest](https://github.com/mmorri/toolchest)
+A collection of tools and utilities. (Description is a placeholder)
+
+### [wmaps](https://github.com/mmorri/wmaps)
+A comprehensive machine learning system for analyzing and predicting Amazon product sales rankings, featuring data visualization, REST API, and containerized deployment.
+
+### [ws-eng-conduit-ai-assessment](https://github.com/mmorri/ws-eng-conduit-ai-assessment)
+This repository contains a full-stack TypeScript application consisting of a NestJS backend and an Angular frontend, used in several real work assessments for Crossover.
+
+---
+
 ## 🛠️ Skills
 - Machine Learning & Deep Learning (Python, PyTorch, Scikit-learn)
 - Bioinformatics & Genomics (NGS, multi-omics, biomarker discovery)
