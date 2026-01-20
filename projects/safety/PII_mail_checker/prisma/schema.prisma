@@ -1,0 +1,266 @@
+// Prisma schema for Email PII Monitor
+// PostgreSQL database with full user management, findings, and audit
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ USER & AUTH ============
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String?
+  name          String?
+  role          Role      @default(ANALYST)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+
+  // Relations
+  sessions      Session[]
+  gmailAccounts GmailAccount[]
+  findings      Finding[]      @relation("AssignedFindings")
+  auditLogs     AuditLog[]
+  policies      Policy[]
+
+  @@index([email])
+}
+
+enum Role {
+  ADMIN
+  ANALYST
+  VIEWER
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userAgent String?
+  ipAddress String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
+
+// ============ GMAIL INTEGRATION ============
+
+model GmailAccount {
+  id              String   @id @default(uuid())
+  userId          String
+  email           String
+  accessToken     String   @db.Text
+  refreshToken    String?  @db.Text
+  tokenExpiresAt  DateTime?
+  historyId       String?
+  isActive        Boolean  @default(true)
+  lastSyncAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emails   Email[]
+  findings Finding[]
+
+  @@unique([userId, email])
+  @@index([userId])
+}
+
+// ============ EMAIL & FINDINGS ============
+
+model Email {
+  id             String   @id @default(uuid())
+  gmailAccountId String
+  gmailMessageId String
+  threadId       String?
+  from           String
+  to             String[]
+  cc             String[]
+  bcc            String[]
+  subject        String
+  bodyPreview    String?  @db.Text  // Redacted preview
+  bodyHash       String?            // Hash for dedup
+  receivedAt     DateTime
+  processedAt    DateTime @default(now())
+  isProcessed    Boolean  @default(true)
+
+  gmailAccount GmailAccount @relation(fields: [gmailAccountId], references: [id], onDelete: Cascade)
+  findings     Finding[]
+
+  @@unique([gmailAccountId, gmailMessageId])
+  @@index([gmailAccountId])
+  @@index([receivedAt])
+}
+
+model Finding {
+  id              String        @id @default(uuid())
+  emailId         String?
+  gmailAccountId  String
+  status          FindingStatus @default(NEW)
+  severity        Severity      @default(MEDIUM)
+  riskScore       Int           @default(0)
+  
+  // Detection details
+  piiType         String                // ssn, creditCard, email, phone, etc.
+  piiCategory     String                // PII, KEYWORD, etc.
+  description     String
+  matchCount      Int           @default(1)
+  confidence      Float         @default(0)
+  mlEnhanced      Boolean       @default(false)
+  detectionMethod String        @default("rule-based")  // rule-based, ml-model, hybrid
+  
+  // Evidence (redacted)
+  redactedValue   String?               // Masked value: ***-**-6789
+  context         String?       @db.Text // Surrounding text (redacted)
+  
+  // Metadata
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  reviewedAt      DateTime?
+  reviewedById    String?
+  reviewNotes     String?       @db.Text
+  falsePositive   Boolean       @default(false)
+
+  // Relations
+  email        Email?       @relation(fields: [emailId], references: [id], onDelete: SetNull)
+  gmailAccount GmailAccount @relation(fields: [gmailAccountId], references: [id], onDelete: Cascade)
+  reviewedBy   User?        @relation("AssignedFindings", fields: [reviewedById], references: [id])
+  feedbacks    Feedback[]
+
+  @@index([gmailAccountId])
+  @@index([status])
+  @@index([severity])
+  @@index([createdAt])
+  @@index([piiType])
+}
+
+enum FindingStatus {
+  NEW
+  ACKNOWLEDGED
+  REVIEWING
+  RESOLVED
+  FALSE_POSITIVE
+  ESCALATED
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// ============ FEEDBACK & ML ============
+
+model Feedback {
+  id          String   @id @default(uuid())
+  findingId   String
+  isCorrect   Boolean
+  correctType String?  // If incorrect, what should it be?
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  createdById String?
+
+  finding Finding @relation(fields: [findingId], references: [id], onDelete: Cascade)
+
+  @@index([findingId])
+}
+
+// ============ POLICY & SETTINGS ============
+
+model Policy {
+  id                  String   @id @default(uuid())
+  userId              String
+  name                String   @default("Default Policy")
+  
+  // Detection settings
+  enabledPiiTypes     String[] @default(["ssn", "creditCard", "email", "phone", "bankAccount"])
+  confidenceThreshold Float    @default(0.8)
+  
+  // Severity thresholds
+  highSeverityScore   Int      @default(10)
+  criticalSeverityScore Int    @default(20)
+  
+  // Allowlists
+  allowedDomains      String[] @default([])
+  allowedSenders      String[] @default([])
+  
+  // Notifications
+  emailNotifications  Boolean  @default(true)
+  notifyOnSeverity    Severity @default(HIGH)
+  
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ============ AUDIT LOG ============
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  action      String            // LOGIN, LOGOUT, VIEW_FINDING, RESOLVE_FINDING, etc.
+  resource    String?           // finding, email, policy, etc.
+  resourceId  String?
+  details     Json?             // Additional context
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ============ STATISTICS (MATERIALIZED) ============
+
+model DailyStats {
+  id              String   @id @default(uuid())
+  date            DateTime @db.Date
+  gmailAccountId  String?
+  
+  emailsProcessed Int      @default(0)
+  findingsCreated Int      @default(0)
+  
+  // By severity
+  lowCount        Int      @default(0)
+  mediumCount     Int      @default(0)
+  highCount       Int      @default(0)
+  criticalCount   Int      @default(0)
+  
+  // By PII type
+  ssnCount        Int      @default(0)
+  creditCardCount Int      @default(0)
+  emailCount      Int      @default(0)
+  phoneCount      Int      @default(0)
+  bankAccountCount Int     @default(0)
+  keywordCount    Int      @default(0)
+  
+  // Resolution stats
+  resolvedCount   Int      @default(0)
+  falsePositiveCount Int   @default(0)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([date, gmailAccountId])
+  @@index([date])
+  @@index([gmailAccountId])
+}

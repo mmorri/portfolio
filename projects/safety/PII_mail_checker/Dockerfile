@@ -1,32 +1,33 @@
-# Multi-stage build for Email PII Monitor
-FROM node:16-alpine AS base
-
-# Set working directory
+FROM node:18-alpine AS base
 WORKDIR /app
-
-# Copy package files
 COPY package*.json ./
 
-# Install dependencies
+FROM base AS deps
 RUN npm ci --only=production
 
-# Copy source code
+FROM base AS builder
+RUN npm ci
 COPY . .
+RUN npm run db:generate
 
-# Create non-root user for security
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
+FROM node:18-alpine AS runner
+WORKDIR /app
 
-# Change ownership of the app directory
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=builder /app/generated ./generated
+COPY --from=builder /app/src ./src
+COPY --from=builder /app/ml ./ml
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/package*.json ./
+
 RUN chown -R nodejs:nodejs /app
 USER nodejs
 
-# Expose port
 EXPOSE 3000
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })" || exit 1
 
-# Start the application
-CMD ["npm", "start"] 
+CMD ["npm", "start"]
