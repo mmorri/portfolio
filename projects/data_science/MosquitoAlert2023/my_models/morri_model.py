@@ -9,7 +9,7 @@ from tensorflow.keras.optimizers import Adam
 from sklearn.model_selection import train_test_split
 
 # Path to the data directory
-data_dir = '/Users/mmorri/Desktop/data'
+data_dir = '/home/mmorri/Desktop/projects_data/Mosquito2023/'
 
 # Load the CSV file containing image filenames and their class labels
 data = pd.read_csv(os.path.join(data_dir, 'phase2_train_v0.csv'))
