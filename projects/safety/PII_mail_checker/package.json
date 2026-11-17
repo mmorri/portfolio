@@ -1,85 +1,93 @@
 {
-    "name": "email-pii-monitor",
-    "version": "1.0.0",
-    "description": "Node.js backend system for monitoring email communications and flagging emails containing sensitive information (PII) with Gmail API integration and ML-powered detection",
-    "main": "src/index.js",
-    "scripts": {
-        "start": "node src/index.js",
-        "start:legacy": "node server.js",
-        "dev": "nodemon src/index.js",
-        "dev:legacy": "nodemon server.js",
-        "db:generate": "prisma generate",
-        "db:migrate": "prisma migrate dev",
-        "db:push": "prisma db push",
-        "db:studio": "prisma studio",
-        "test": "jest",
-        "test:watch": "jest --watch",
-        "test:coverage": "jest --coverage",
-        "lint": "eslint .",
-        "lint:fix": "eslint . --fix",
-        "train": "node ml/train-model.js",
-        "generate-data": "node ml/generate_training_data.js",
-        "test-consistency": "node test-consistency.js",
-        "docker:build": "docker build -t pii-monitor .",
-        "docker:run": "docker run -p 3000:3000 pii-monitor",
-        "docker:compose": "docker-compose up -d",
-        "docker:compose:down": "docker-compose down",
-        "setup": "npm install && npm run generate-data 500 0.5 && npm run train",
-        "clean": "rm -rf node_modules package-lock.json && npm install"
+  "name": "email-pii-monitor",
+  "version": "1.0.0",
+  "description": "Node.js backend system for monitoring email communications and flagging emails containing sensitive information (PII) with Gmail API integration and ML-powered detection",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "start:legacy": "node server.js",
+    "dev": "nodemon src/index.js",
+    "dev:legacy": "nodemon server.js",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "train": "node ml/train-model.js",
+    "generate-data": "node ml/generate_training_data.js",
+    "test-consistency": "node test-consistency.js",
+    "docker:build": "docker build -t pii-monitor .",
+    "docker:run": "docker run -p 3000:3000 pii-monitor",
+    "docker:compose": "docker-compose up -d",
+    "docker:compose:down": "docker-compose down",
+    "setup": "npm install && npm run generate-data 500 0.5 && npm run train",
+    "clean": "rm -rf node_modules package-lock.json && npm install"
+  },
+  "keywords": [
+    "email",
+    "pii",
+    "monitoring",
+    "security",
+    "gmail",
+    "compliance",
+    "data-protection",
+    "machine-learning",
+    "nlp",
+    "ai"
+  ],
+  "author": "Maurizio Morri",
+  "license": "MIT",
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-node": "^4.22.0",
+    "bcryptjs": "^3.0.3",
+    "compromise": "^14.9.0",
+    "connect-pg-simple": "^10.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "express-session": "^1.18.2",
+    "googleapis": "^190.0.0",
+    "helmet": "^7.0.0",
+    "natural": "^6.8.0",
+    "prisma": "^5.22.0",
+    "rate-limiter-flexible": "^2.4.2",
+    "uuid": "^14.0.3",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/express-session": "^1.18.2",
+    "@types/node": "^20.4.5",
+    "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.18.1",
+    "eslint": "^8.40.0",
+    "jest": "^30.5.2",
+    "nodemon": "^3.1.14",
+    "supertest": "^6.3.3"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mmorri/portfolio.git",
+    "directory": "projects/safety/PII_mail_checker"
+  },
+  "bugs": {
+    "url": "https://github.com/mmorri/portfolio/issues"
+  },
+  "homepage": "https://github.com/mmorri/portfolio/tree/master/projects/safety/PII_mail_checker#readme",
+  "overrides": {
+    "tar": "^7.5.23",
+    "adm-zip": "^0.6.1",
+    "natural": {
+      "uuid": "^14.0.3"
     },
-    "keywords": [
-        "email",
-        "pii",
-        "monitoring",
-        "security",
-        "gmail",
-        "compliance",
-        "data-protection",
-        "machine-learning",
-        "nlp",
-        "ai"
-    ],
-    "author": "Maurizio Morri",
-    "license": "MIT",
-    "dependencies": {
-        "@prisma/client": "^5.22.0",
-        "@tensorflow/tfjs": "^4.22.0",
-        "@tensorflow/tfjs-node": "^4.22.0",
-        "bcryptjs": "^3.0.3",
-        "compromise": "^14.9.0",
-        "connect-pg-simple": "^10.0.0",
-        "cors": "^2.8.5",
-        "express": "^4.18.2",
-        "express-session": "^1.18.2",
-        "googleapis": "^118.0.0",
-        "helmet": "^7.0.0",
-        "natural": "^6.8.0",
-        "prisma": "^5.22.0",
-        "rate-limiter-flexible": "^2.4.2",
-        "uuid": "^13.0.0",
-        "ws": "^8.19.0"
-    },
-    "devDependencies": {
-        "@types/bcryptjs": "^2.4.6",
-        "@types/express-session": "^1.18.2",
-        "@types/node": "^20.4.5",
-        "@types/uuid": "^10.0.0",
-        "@types/ws": "^8.18.1",
-        "eslint": "^8.40.0",
-        "jest": "^29.5.0",
-        "nodemon": "^3.1.10",
-        "supertest": "^6.3.3"
-    },
-    "engines": {
-        "node": ">=16.0.0"
-    },
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/mmorri/portfolio.git",
-        "directory": "projects/safety/PII_mail_checker"
-    },
-    "bugs": {
-        "url": "https://github.com/mmorri/portfolio/issues"
-    },
-    "homepage": "https://github.com/mmorri/portfolio/tree/master/projects/safety/PII_mail_checker#readme"
+    "chokidar": "^4.0.0"
+  }
 }
