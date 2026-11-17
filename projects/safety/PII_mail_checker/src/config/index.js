@@ -8,8 +8,14 @@ const config = {
   // Database
   databaseUrl: process.env.DATABASE_URL,
   
-  // Session
-  sessionSecret: process.env.SESSION_SECRET || 'your-super-secret-session-key-change-in-production',
+  // Session — fail closed in production so a dev fallback can never sign prod cookies
+  sessionSecret: (() => {
+    if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('SESSION_SECRET must be set in production');
+    }
+    return 'dev-only-insecure-session-secret';
+  })(),
   sessionMaxAge: parseInt(process.env.SESSION_MAX_AGE, 10) || 24 * 60 * 60 * 1000, // 24 hours
   
   // Security

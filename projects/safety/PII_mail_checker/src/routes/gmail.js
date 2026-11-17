@@ -39,14 +39,20 @@ router.get('/auth-url', authenticate, asyncHandler(async (req, res) => {
 }));
 
 router.get('/callback', asyncHandler(async (req, res) => {
-  const { code, state: userId, error } = req.query;
-  
+  const { code, state, error } = req.query;
+
   if (error) {
     return res.redirect(`/gmail-setup?error=${encodeURIComponent(error)}`);
   }
-  
-  if (!code || !userId) {
+
+  if (!code || !state) {
     return res.redirect('/gmail-setup?error=missing_params');
+  }
+
+  // state must be a server-signed userId token — never trust a raw userId
+  const userId = gmailService.verifyState(state);
+  if (!userId) {
+    return res.redirect('/gmail-setup?error=invalid_state');
   }
   
   try {
@@ -93,7 +99,7 @@ router.post('/scan/:accountId', authenticate, asyncHandler(async (req, res) => {
   const { accountId } = req.params;
   const { count = 10 } = req.body;
   
-  const emails = await gmailService.scanRecentEmails(accountId, Math.min(count, 50));
+  const emails = await gmailService.scanRecentEmails(accountId, Math.min(count, 50), req.user.id);
   
   const results = [];
   

@@ -18,6 +18,7 @@ router.get('/', authenticate, asyncHandler(async (req, res) => {
   } = req.query;
 
   const result = await findingService.getFindings({
+    userId: req.user.id,
     gmailAccountId,
     status,
     severity,
@@ -38,8 +39,9 @@ router.get('/statistics', authenticate, asyncHandler(async (req, res) => {
   const { gmailAccountId, days = 7 } = req.query;
   
   const statistics = await findingService.getStatistics(
-    gmailAccountId, 
-    parseInt(days, 10)
+    gmailAccountId,
+    parseInt(days, 10),
+    req.user.id
   );
 
   res.json({
@@ -49,7 +51,7 @@ router.get('/statistics', authenticate, asyncHandler(async (req, res) => {
 }));
 
 router.get('/:id', authenticate, asyncHandler(async (req, res) => {
-  const finding = await findingService.getFindingById(req.params.id);
+  const finding = await findingService.getFindingById(req.params.id, req.user.id);
   
   if (!finding) {
     return res.status(404).json({
@@ -87,6 +89,7 @@ router.patch('/:id/status', authenticate, analystOrAdmin, asyncHandler(async (re
     reviewedById: req.user.id,
     reviewNotes,
     falsePositive,
+    userId: req.user.id,
   });
 
   await auditService.log({
@@ -117,6 +120,7 @@ router.post('/bulk-update', authenticate, analystOrAdmin, asyncHandler(async (re
   const result = await findingService.bulkUpdateFindings(ids, {
     status,
     reviewedById: req.user.id,
+    userId: req.user.id,
   });
 
   await auditService.log({
@@ -140,6 +144,14 @@ router.post('/:id/feedback', authenticate, asyncHandler(async (req, res) => {
     return res.status(400).json({
       success: false,
       error: 'isCorrect is required'
+    });
+  }
+
+  const owned = await findingService.getFindingById(req.params.id, req.user.id);
+  if (!owned) {
+    return res.status(404).json({
+      success: false,
+      error: 'Finding not found'
     });
   }
 

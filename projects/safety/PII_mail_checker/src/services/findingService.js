@@ -53,19 +53,21 @@ async function createFinding(data) {
   });
 }
 
-async function getFindings({ 
-  gmailAccountId, 
-  status, 
-  severity, 
+async function getFindings({
+  userId,
+  gmailAccountId,
+  status,
+  severity,
   piiType,
   startDate,
   endDate,
-  page = 1, 
-  limit = 20 
+  page = 1,
+  limit = 20
 }) {
   const prisma = getPrismaClient();
-  
-  const where = {};
+
+  // Scope every query to accounts owned by the caller (IDOR prevention).
+  const where = userId ? { gmailAccount: { userId } } : {};
   if (gmailAccountId) where.gmailAccountId = gmailAccountId;
   if (status) where.status = status;
   if (severity) where.severity = severity;
@@ -118,12 +120,13 @@ async function getFindings({
   };
 }
 
-async function getFindingById(id) {
+async function getFindingById(id, userId) {
   const prisma = getPrismaClient();
-  
-  return prisma.finding.findUnique({
+
+  const finding = await prisma.finding.findUnique({
     where: { id },
     include: {
+      gmailAccount: { select: { userId: true } },
       email: true,
       reviewedBy: {
         select: {
@@ -135,11 +138,25 @@ async function getFindingById(id) {
       feedbacks: true,
     }
   });
+
+  // Ownership gate: callers passing userId only ever see their own findings.
+  if (userId && (!finding || finding.gmailAccount?.userId !== userId)) {
+    return null;
+  }
+  if (finding) delete finding.gmailAccount;
+  return finding;
 }
 
-async function updateFindingStatus(id, { status, reviewedById, reviewNotes, falsePositive }) {
+async function updateFindingStatus(id, { status, reviewedById, reviewNotes, falsePositive, userId }) {
   const prisma = getPrismaClient();
-  
+
+  if (userId) {
+    const existing = await getFindingById(id, userId);
+    if (!existing) {
+      throw new Error('Finding not found');
+    }
+  }
+
   const data = { status, updatedAt: new Date() };
   if (reviewedById) {
     data.reviewedById = reviewedById;
@@ -163,11 +180,14 @@ async function updateFindingStatus(id, { status, reviewedById, reviewNotes, fals
   });
 }
 
-async function bulkUpdateFindings(ids, { status, reviewedById }) {
+async function bulkUpdateFindings(ids, { status, reviewedById, userId }) {
   const prisma = getPrismaClient();
-  
+
+  const where = { id: { in: ids } };
+  if (userId) where.gmailAccount = { userId };
+
   return prisma.finding.updateMany({
-    where: { id: { in: ids } },
+    where,
     data: {
       status,
       reviewedById,
@@ -177,12 +197,13 @@ async function bulkUpdateFindings(ids, { status, reviewedById }) {
   });
 }
 
-async function getStatistics(gmailAccountId, days = 7) {
+async function getStatistics(gmailAccountId, days = 7, userId) {
   const prisma = getPrismaClient();
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
-  
+
   const where = { createdAt: { gte: startDate } };
+  if (userId) where.gmailAccount = { userId };
   if (gmailAccountId) where.gmailAccountId = gmailAccountId;
   
   const [

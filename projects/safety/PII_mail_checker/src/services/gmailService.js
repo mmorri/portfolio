@@ -1,6 +1,24 @@
 const { google } = require('googleapis');
 const { getPrismaClient } = require('../config/database');
 const config = require('../config');
+const { signState, verifyState: verifyOAuthState } = require('./oauthState');
+const { encryptToken, decryptToken, resolveTokenKey } = require('./tokenCrypto');
+
+// OAuth tokens are encrypted at rest. Set TOKEN_ENCRYPTION_KEY to a
+// 64-hex-char key in every environment; production refuses to use tokens
+// without it. Existing plaintext rows still read via the legacy fallback so
+// current users keep working — re-encrypt them by disconnecting/reconnecting.
+function tokenKey() {
+  return resolveTokenKey(process.env.TOKEN_ENCRYPTION_KEY, config.sessionSecret);
+}
+
+function enc(plain) {
+  return encryptToken(plain, tokenKey());
+}
+
+function dec(stored) {
+  return decryptToken(stored, tokenKey());
+}
 
 const SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
@@ -17,12 +35,12 @@ function createOAuth2Client() {
 
 function getAuthUrl(userId) {
   const oauth2Client = createOAuth2Client();
-  
+
   return oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
     prompt: 'consent',
-    state: userId,
+    state: signState(userId, config.sessionSecret),
   });
 }
 
@@ -44,8 +62,8 @@ async function handleOAuthCallback(code, userId) {
       }
     },
     update: {
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token || undefined,
+      accessToken: enc(tokens.access_token),
+      refreshToken: tokens.refresh_token ? enc(tokens.refresh_token) : undefined,
       tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
       isActive: true,
       updatedAt: new Date(),
@@ -53,8 +71,8 @@ async function handleOAuthCallback(code, userId) {
     create: {
       userId,
       email: userInfo.email,
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token,
+      accessToken: enc(tokens.access_token),
+      refreshToken: tokens.refresh_token ? enc(tokens.refresh_token) : null,
       tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
       isActive: true,
     }
@@ -98,12 +116,14 @@ async function disconnectGmailAccount(userId, accountId) {
   return { success: true };
 }
 
-async function getGmailClient(gmailAccountId) {
+async function getGmailClient(gmailAccountId, userId) {
   const prisma = getPrismaClient();
   
-  const account = await prisma.gmailAccount.findUnique({
-    where: { id: gmailAccountId }
-  });
+  // Ownership check: when a userId is supplied, only an account owned by
+  // that user may be returned (prevents cross-user mailbox/token access).
+  const account = userId
+    ? await prisma.gmailAccount.findFirst({ where: { id: gmailAccountId, userId } })
+    : await prisma.gmailAccount.findUnique({ where: { id: gmailAccountId } });
   
   if (!account || !account.isActive) {
     throw new Error('Gmail account not found or inactive');
@@ -111,15 +131,15 @@ async function getGmailClient(gmailAccountId) {
   
   const oauth2Client = createOAuth2Client();
   oauth2Client.setCredentials({
-    access_token: account.accessToken,
-    refresh_token: account.refreshToken,
+    access_token: dec(account.accessToken),
+    refresh_token: account.refreshToken ? dec(account.refreshToken) : undefined,
   });
   
   oauth2Client.on('tokens', async (tokens) => {
     await prisma.gmailAccount.update({
       where: { id: gmailAccountId },
       data: {
-        accessToken: tokens.access_token,
+        accessToken: enc(tokens.access_token),
         tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
       }
     });
@@ -128,8 +148,8 @@ async function getGmailClient(gmailAccountId) {
   return google.gmail({ version: 'v1', auth: oauth2Client });
 }
 
-async function scanRecentEmails(gmailAccountId, maxResults = 10) {
-  const gmail = await getGmailClient(gmailAccountId);
+async function scanRecentEmails(gmailAccountId, maxResults = 10, userId) {
+  const gmail = await getGmailClient(gmailAccountId, userId);
   const prisma = getPrismaClient();
   
   const response = await gmail.users.messages.list({
@@ -191,6 +211,7 @@ function isConfigured() {
 
 module.exports = {
   getAuthUrl,
+  verifyState: (state) => verifyOAuthState(state, config.sessionSecret),
   handleOAuthCallback,
   getGmailAccounts,
   disconnectGmailAccount,

@@ -56,6 +56,24 @@ app.use(async (req, res, next) => {
   }
 });
 
+// Stricter brute-force protection on auth endpoints (login/register).
+const authRateLimiter = new RateLimiterMemory({
+  keyGenerator: (req) => req.ip,
+  points: 10,
+  duration: 600, // 10 attempts per 10 minutes per IP
+});
+app.use('/api/auth', async (req, res, next) => {
+  try {
+    await authRateLimiter.consume(req.ip);
+    next();
+  } catch {
+    res.status(429).json({
+      success: false,
+      error: 'Too many login attempts. Please try again later.'
+    });
+  }
+});
+
 const mlDetector = new MLPIIDetector();
 let mlEnabled = false;
 

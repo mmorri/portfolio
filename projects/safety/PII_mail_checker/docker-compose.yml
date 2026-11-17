@@ -4,9 +4,9 @@ services:
   postgres:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: pii_user
-      POSTGRES_PASSWORD: pii_password
-      POSTGRES_DB: pii_monitor
+      POSTGRES_USER: ${POSTGRES_USER:-pii_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your .env file}
+      POSTGRES_DB: ${POSTGRES_DB:-pii_monitor}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -26,8 +26,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - DATABASE_URL=postgresql://pii_user:pii_password@postgres:5432/pii_monitor
-      - SESSION_SECRET=your-production-secret-change-this
+      - DATABASE_URL=${DATABASE_URL:?Set DATABASE_URL in your .env file}
+      - SESSION_SECRET=${SESSION_SECRET:?Set SESSION_SECRET in your .env file}
       - ML_ENABLED=true
       - CONFIDENCE_THRESHOLD=0.8
       - CORS_ORIGINS=http://localhost:5173,http://localhost:80
@@ -50,7 +50,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "80:80"
+      - "80:8080"
     depends_on:
       - backend
     restart: unless-stopped
