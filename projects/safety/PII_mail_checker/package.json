@@ -88,6 +88,7 @@
     "natural": {
       "uuid": "^14.0.3"
     },
-    "chokidar": "^4.0.0"
+    "chokidar": "^4.0.0",
+    "minimatch": "^11.0.1"
   }
 }
